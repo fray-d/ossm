@@ -155,6 +155,7 @@ pub async fn ble_events_task(
                 let connect_params = ConnectParams {
                     min_connection_interval: Duration::from_micros(7500),
                     max_connection_interval: Duration::from_micros(7500),
+                    supervision_timeout: Duration::from_millis(1000),
                     ..Default::default()
                 };
                 match connection
