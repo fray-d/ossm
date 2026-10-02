@@ -165,7 +165,7 @@ fn compute_command(
     jerk_factor: f64,
     torque: Option<f64>,
 ) -> MotionCommand {
-    let stroke = input.stroke.clamp(0.0, 1.0);
+    let stroke = input.stroke.clamp(0.0, input.depth.clamp(0.0,1.0));
     let shallow = (input.depth - stroke).clamp(0.0,1.0);
     let position = shallow + fraction * stroke;
     let speed = input.velocity * speed_factor.clamp(0.0, 1.0);
