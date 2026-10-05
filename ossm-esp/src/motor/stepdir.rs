@@ -18,9 +18,9 @@ use crate::motor::pcnt::PcntPositionCounter;
 /// divider=4 gives 20 MHz (50 ns per tick).
 const RMT_CLK_DIVIDER: u8 = 4;
 
-/// Step pulse width in RMT ticks. At 50 ns/tick, 20 ticks = 1 µs per half.
-/// Full step period = 2 µs → max 500 kHz step rate.
-const STEP_PULSE_TICKS: u16 = 20;
+/// Step pulse width in RMT ticks. At 50 ns/tick, 100 ticks = 5 µs per half.
+/// Full step period = 10 µs → max 100 kHz step rate.
+const STEP_PULSE_TICKS: u16 = 100;
 
 /// Maximum number of step pulses per RMT transmission batch.
 /// The ESP32 has 64 entries per channel. We use 63 pulses + 1 end marker.
@@ -61,15 +61,20 @@ pub fn build(config: Config) -> Motor {
 
     let enable_pin = Output::new(config.enable, Level::High, OutputConfig::default());
 
+    let step_dir_config = StepDirConfig::default();
+    let m57aim_config = Motor57AIMConfig {
+        steps_per_rev: step_dir_config.steps_per_rev,
+        max_output: step_dir_config.max_output,
+    };
     let step_dir_motor = StepDirMotor::new(
         step_output,
         dir,
         enable_pin,
         PcntPositionCounter::new(pcnt, step_in, dir_ctrl),
-        StepDirConfig::default(),
+        step_dir_config,
     );
 
-    Motor57AIM::new(step_dir_motor, Motor57AIMConfig::default(), Delay)
+    Motor57AIM::new(step_dir_motor, m57aim_config, Delay)
 }
 
 /// Generates step pulses via the ESP RMT peripheral. Drives the GPIO
