@@ -61,15 +61,20 @@ pub fn build(config: Config) -> Motor {
 
     let enable_pin = Output::new(config.enable, Level::High, OutputConfig::default());
 
+    let step_dir_config = StepDirConfig::default();
+    let m57aim_config = Motor57AIMConfig {
+        steps_per_rev: step_dir_config.steps_per_rev,
+        max_output: step_dir_config.max_output,
+    };
     let step_dir_motor = StepDirMotor::new(
         step_output,
         dir,
         enable_pin,
         PcntPositionCounter::new(pcnt, step_in, dir_ctrl),
-        StepDirConfig::default(),
+        step_dir_config,
     );
 
-    Motor57AIM::new(step_dir_motor, Motor57AIMConfig::default(), Delay)
+    Motor57AIM::new(step_dir_motor, m57aim_config, Delay)
 }
 
 /// Generates step pulses via the ESP RMT peripheral. Drives the GPIO
