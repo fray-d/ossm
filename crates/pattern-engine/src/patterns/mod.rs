@@ -1,6 +1,7 @@
 mod deeper;
 mod half_half;
 mod hammerjack;
+mod humanize;
 mod insist;
 mod jackhammer;
 mod knot;
@@ -17,6 +18,7 @@ mod torque;
 pub use deeper::Deeper;
 pub use half_half::HalfHalf;
 pub use hammerjack::Hammerjack;
+pub use humanize::Humanize;
 pub use insist::Insist;
 pub use jackhammer::Jackhammer;
 pub use knot::Knot;
