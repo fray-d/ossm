@@ -16,7 +16,7 @@ use embassy_futures::select::{Either, select};
 use embassy_time::{Duration, Ticker, Timer};
 use esp_radio::ble::controller::BleConnector;
 use heapless::String;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use pattern_engine::{EngineState, PatternInput, PatternSender, commands};
 use static_cell::StaticCell;
 use trouble_host::prelude::*;
@@ -237,6 +237,7 @@ async fn gatt_events_task<P: PacketPool>(
                             let engine_state = patterns.state();
                             let input = patterns.input();
                             let state_json = state_to_json(engine_state, &input);
+                            debug!("Read State: {}", state_json);
                             server.set(&server.ossm_service.current_state, &state_json)?;
                         }
                         if event.handle() == server.ossm_service.pattern_list.handle {
@@ -339,7 +340,7 @@ async fn state_notifications<P: PacketPool>(
         .subscribe()
         .expect("No state subscriber slots available");
     let mut heartbeat = Ticker::every(Duration::from_secs(1));
-
+    let mut old_state: (EngineState, PatternInput) = (EngineState::Idle, PatternInput::DEFAULT);
     loop {
         let engine_state = match select(sub.next_message_pure(), heartbeat.next()).await {
             Either::First(state) => state,
@@ -347,12 +348,16 @@ async fn state_notifications<P: PacketPool>(
         };
 
         let input = patterns.input();
-        let state_json = state_to_json(engine_state, &input);
-        server
-            .ossm_service
-            .current_state
-            .notify(connection, &state_json)
-            .await?;
+        if old_state != (engine_state, input) {
+            let state_json = state_to_json(engine_state, &input);
+            debug!("Notify State: {}", state_json);
+            server
+                .ossm_service
+                .current_state
+                .notify(connection, &state_json)
+                .await?;
+            old_state = (engine_state, input);
+        }
     }
 }
 
