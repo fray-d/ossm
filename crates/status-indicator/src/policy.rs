@@ -51,7 +51,7 @@ pub fn select(engine: EngineState, motion: MotionPhase) -> Status {
         (_, MotionPhase::Moving) | (EngineState::Playing(_), _) => Status::Playing,
         (EngineState::Paused(_), _) | (_, MotionPhase::Paused) => Status::Paused,
         (EngineState::Ready, _) => Status::Ready,
-        _ => Status::Idle,
+        (EngineState::Idle, MotionPhase::Ready) => Status::Idle,
     }
 }
 
