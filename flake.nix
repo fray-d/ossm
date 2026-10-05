@@ -44,6 +44,22 @@
             --extensions-dir "$EXT_DIR" \
             "$@"
         '';
+
+        # `gh` wrapper: keeps auth under .git/gh so logins are scoped to this
+        # repo (never committed, shared across worktrees). Tokens are stored in
+        # that dir rather than the system keyring, which is keyed only by
+        # host+user and would otherwise be shared with the global gh login.
+        gh-local = pkgs.writeShellScriptBin "gh" ''
+          set -eu
+          if common="$(${pkgs.git}/bin/git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
+            export GH_CONFIG_DIR="$common/gh"
+          fi
+          if [ "''${1-}" = auth ] && [ "''${2-}" = login ]; then
+            shift 2
+            exec ${pkgs.gh}/bin/gh auth login --insecure-storage "$@"
+          fi
+          exec ${pkgs.gh}/bin/gh "$@"
+        '';
       in {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
@@ -61,12 +77,25 @@
             pnpm
 
             jq
+            gh-local
 
             # Editor
             codium-local
           ];
 
           shellHook = ''
+            # Route git's github.com HTTPS credentials through the repo-scoped
+            # gh wrapper. Set via env-based git config so it only applies in
+            # this shell and never writes a nix store path into a config file.
+            # The empty value clears any inherited github.com helpers first.
+            n="''${GIT_CONFIG_COUNT:-0}"
+            export "GIT_CONFIG_KEY_$n=credential.https://github.com.helper"
+            export "GIT_CONFIG_VALUE_$n="
+            export "GIT_CONFIG_KEY_$((n + 1))=credential.https://github.com.helper"
+            export "GIT_CONFIG_VALUE_$((n + 1))=!${gh-local}/bin/gh auth git-credential"
+            export GIT_CONFIG_COUNT="$((n + 2))"
+            unset n
+
             # Ensure the stable toolchain and wasm32 target are present so that
             # `just doctor`'s rustup checks succeed.
             if ! rustup toolchain list 2>/dev/null | grep -q '^stable'; then
