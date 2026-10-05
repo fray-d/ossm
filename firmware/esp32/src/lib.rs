@@ -13,9 +13,11 @@ compile_error!(
 );
 
 mod board;
+mod indicator;
 mod motor;
 mod radio;
 
+pub use indicator::Config as IndicatorConfig;
 pub use board::Config as BoardConfig;
 pub use motor::Config as MotorConfig;
 
@@ -24,8 +26,10 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use embassy_time::{Delay, Duration, Ticker};
 use esp_hal::{
+    Blocking,
     interrupt::{Priority, software::SoftwareInterruptControl},
     peripherals::{BT, CPU_CTRL, SW_INTERRUPT, TIMG0},
+    rmt::{ChannelCreator, TxChannelCreator},
     system::Stack,
     timer::timg::TimerGroup,
 };
@@ -55,8 +59,9 @@ static EXECUTOR_CORE_1: StaticCell<InterruptExecutor<2>> = StaticCell::new();
 static APP_CORE_STACK: StaticCell<Stack<32768>> = StaticCell::new();
 static MOTION_READY: Signal<CriticalSectionRawMutex, bool> = Signal::new();
 
-pub struct Config {
-    pub motor: motor::Config,
+pub struct Config<const RMT_CHANNEL: u8> {
+    pub motor: MotorConfig<'static, RMT_CHANNEL>,
+    pub indicator: Option<IndicatorConfig>,
     pub board: board::Config,
     pub bt: BT<'static>,
     pub timg0: TIMG0<'static>,
@@ -77,7 +82,10 @@ async fn motion_task(mut controller: MotionController<'static, board::Board>) {
     }
 }
 
-pub async fn run(spawner: Spawner, config: Config) {
+pub async fn run<const RMT_CHANNEL: u8>(spawner: Spawner, config: Config<RMT_CHANNEL>)
+where
+    ChannelCreator<'static, Blocking, RMT_CHANNEL>: TxChannelCreator<'static, Blocking>,
+{
     ossm::logging::init(log::LevelFilter::Info, |line| {
         esp_println::println!("{}", line);
     });
@@ -90,6 +98,7 @@ pub async fn run(spawner: Spawner, config: Config) {
     let timg0 = TimerGroup::new(config.timg0);
     esp_rtos::start(timg0.timer0);
 
+    let indicator = indicator::build::<0, 1>(config.indicator);
     let motor = motor::build(config.motor);
 
     static MECHANICAL: MechanicalConfig = MechanicalConfig {
@@ -99,7 +108,7 @@ pub async fn run(spawner: Spawner, config: Config) {
     };
     let limits = MotionLimits::default();
 
-    let (receiver, _observer, motion) = OSSM_CELL.init(Ossm::new()).split();
+    let (receiver, motion_observer, motion) = OSSM_CELL.init(Ossm::new()).split();
 
     let board = board::build(motor, config.board, &MECHANICAL);
     let controller = receiver.into_controller(board, limits.clone(), UPDATE_INTERVAL_SECS);
@@ -134,8 +143,10 @@ pub async fn run(spawner: Spawner, config: Config) {
         UPDATE_INTERVAL_SECS * 1000.0
     );
 
-    let (runner, _observer, patterns) = PATTERNS_CELL.init(PatternEngine::new()).split();
+    let (runner, pattern_observer, patterns) = PATTERNS_CELL.init(PatternEngine::new()).split();
     let patterns: &'static PatternSender = mk_static!(PatternSender, patterns);
+
+    indicator::start(&spawner, indicator, motion_observer, pattern_observer);
 
     radio::start(&spawner, config.bt, patterns);
 
