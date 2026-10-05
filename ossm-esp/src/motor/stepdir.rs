@@ -18,9 +18,9 @@ use crate::motor::pcnt::PcntPositionCounter;
 /// divider=4 gives 20 MHz (50 ns per tick).
 const RMT_CLK_DIVIDER: u8 = 4;
 
-/// Step pulse width in RMT ticks. At 50 ns/tick, 20 ticks = 1 µs per half.
-/// Full step period = 2 µs → max 500 kHz step rate.
-const STEP_PULSE_TICKS: u16 = 20;
+/// Step pulse width in RMT ticks. At 50 ns/tick, 100 ticks = 5 µs per half.
+/// Full step period = 10 µs → max 100 kHz step rate.
+const STEP_PULSE_TICKS: u16 = 100;
 
 /// Maximum number of step pulses per RMT transmission batch.
 /// The ESP32 has 64 entries per channel. We use 63 pulses + 1 end marker.
